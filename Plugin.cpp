@@ -1,78 +1,82 @@
+
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
 #include "pch.h"
-#include "AssetRouter.h"
-#include "Config.h"
-#include "RuntimeForms.h"
-
-namespace
-{
-    std::unique_ptr<UPR::RuntimeForms> g_runtime;
-    bool g_menuSinkRegistered = false;
-
-    std::filesystem::path GameRoot()
-    {
-        std::array<wchar_t, 32768> buf{};
-        const auto len = ::GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
-        if (len == 0 || len >= buf.size()) {
-            return std::filesystem::current_path();
-        }
-        return std::filesystem::path(std::wstring_view(buf.data(), len)).parent_path();
-    }
-
-    void QueueTask(std::function<void()> a_task)
-    {
-        if (const auto* tasks = F4SE::GetTaskInterface()) {
-            tasks->AddTask(std::move(a_task));
-        } else {
-            a_task();
-        }
-    }
-
-    void QueueApply(bool a_reset3D)
-    {
-        QueueTask([a_reset3D]() {
-            if (g_runtime) {
-                g_runtime->Apply(a_reset3D);
-            }
-        });
-    }
-
-    void QueueRefresh(bool a_reset3D)
-    {
-        QueueTask([a_reset3D]() {
-            if (g_runtime) {
-                g_runtime->Refresh(a_reset3D);
-            }
-        });
-    }
-
-    class MenuWatcher final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
-    {
-    public:
-        RE::BSEventNotifyControl ProcessEvent(
-            const RE::MenuOpenCloseEvent& a_event,
-            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
-        {
-            if (!a_event.opening && g_runtime && g_runtime->WantsMenuRefresh() && !g_runtime->IsSuspended()) {
-                QueueRefresh(true);
-            }
-            return RE::BSEventNotifyControl::kContinue;
-        }
-    };
-
-    MenuWatcher g_menuWatcher;
-
-    void RegisterMenuWatcher()
-    {
-        if (g_menuSinkRegistered || !g_runtime || !g_runtime->WantsMenuRefresh()) {
-            return;
-        }
-        if (auto* ui = RE::UI::GetSingleton()) {
-            ui->RegisterSink<RE::MenuOpenCloseEvent>(&g_menuWatcher);
-            g_menuSinkRegistered = true;
-            REX::INFO("Menu-close compatibility refresh enabled");
-        }
-    }
-
     void OnF4SEMessage(F4SE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg || !g_runtime) {
