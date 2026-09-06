@@ -1,0 +1,108 @@
+name: Build UniquePlayerRedirector DLL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Repair flattened upload layout
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src" | Out-Null
+          $srcFiles = @(
+            "AssetRouter.cpp",
+            "AssetRouter.h",
+            "Config.cpp",
+            "Config.h",
+            "Plugin.cpp",
+            "RuntimeForms.cpp",
+            "RuntimeForms.h",
+            "pch.h"
+          )
+          foreach ($f in $srcFiles) {
+            if (Test-Path $f) {
+              Copy-Item -Force $f "src/$f"
+            }
+          }
+
+          New-Item -ItemType Directory -Force -Path "Data/F4SE/Plugins" | Out-Null
+          if (Test-Path "UniquePlayerRedirector.ini") {
+            Copy-Item -Force "UniquePlayerRedirector.ini" "Data/F4SE/Plugins/UniquePlayerRedirector.ini"
+          }
+
+      - name: Install XMake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Enable MSVC x64 build environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Fetch CommonLibF4
+        shell: pwsh
+        run: |
+          if (Test-Path "lib/commonlibf4") {
+            Remove-Item -Recurse -Force "lib/commonlibf4"
+          }
+          New-Item -ItemType Directory -Force -Path "lib" | Out-Null
+          git clone --recurse-submodules --depth 1 https://github.com/libxse/commonlibf4.git lib/commonlibf4
+
+      - name: Show tool versions
+        shell: pwsh
+        run: |
+          xmake --version
+          cl 2>&1 | Select-Object -First 5
+          where.exe cl
+
+      - name: Configure
+        shell: pwsh
+        run: xmake f -p windows -a x64 -m releasedbg -y
+
+      - name: Build
+        shell: pwsh
+        run: xmake -y
+
+      - name: Stage mod
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path build -Recurse -Filter UniquePlayerRedirector.dll | Select-Object -First 1
+          if (-not $dll) {
+            throw "UniquePlayerRedirector.dll was not produced."
+          }
+
+          $stage = "artifact/UniquePlayerRedirector/Data/F4SE/Plugins"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $dll.FullName "$stage/UniquePlayerRedirector.dll"
+
+          if (Test-Path "Data/F4SE/Plugins/UniquePlayerRedirector.ini") {
+            Copy-Item "Data/F4SE/Plugins/UniquePlayerRedirector.ini" "$stage/UniquePlayerRedirector.ini"
+          }
+
+          New-Item -ItemType Directory -Force -Path "artifact/UniquePlayerRedirector/Source" | Out-Null
+          Copy-Item -Recurse -Force "src" "artifact/UniquePlayerRedirector/Source/src"
+          Copy-Item "xmake.lua" "artifact/UniquePlayerRedirector/Source/xmake.lua"
+
+          if (Test-Path "LICENSE") { Copy-Item "LICENSE" "artifact/UniquePlayerRedirector/LICENSE" }
+          if (Test-Path "README.md") { Copy-Item "README.md" "artifact/UniquePlayerRedirector/README.md" }
+          if (Test-Path "ASSET_LAYOUT.txt") { Copy-Item "ASSET_LAYOUT.txt" "artifact/UniquePlayerRedirector/ASSET_LAYOUT.txt" }
+
+          Compress-Archive -Path "artifact/UniquePlayerRedirector" -DestinationPath "UniquePlayerRedirector-built.zip" -Force
+          Write-Host "BUILT DLL: $($dll.FullName)"
+
+      - name: Upload ready-to-install ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniquePlayerRedirector-built
+          path: UniquePlayerRedirector-built.zip
+          if-no-files-found: error
