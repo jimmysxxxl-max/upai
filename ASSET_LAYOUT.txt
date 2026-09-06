@@ -1,0 +1,53 @@
+UniquePlayerRedirector does not ship Bethesda assets.
+Place only the player-specific files you actually want to override.
+
+Default mesh destination:
+
+Data\Meshes\Actors\Character\PlayerCharacterAssets\
+  FemaleBody.nif
+  FemaleHands.nif
+  1stPersonFemaleBody.nif
+  1stPersonFemaleHands.nif
+  MaleBody.nif
+  MaleHands.nif
+  1stPersonMaleBody.nif
+  1stPersonMaleHands.nif
+  ...any other skin-ARMA model whose upstream path is under CharacterAssets
+
+Default female texture destination:
+
+Data\Textures\Actors\Character\PlayerHumanFemale\
+  FemaleBody_d.dds
+  FemaleBody_n.dds
+  FemaleBody_s.dds
+  BaseFemaleHands_d.dds
+  BaseFemaleHands_n.dds
+  BaseFemaleHands_s.dds
+  BaseFemaleHead_d.dds
+  BaseFemaleHead_n.dds
+  BaseFemaleHead_s.dds
+  ...matching TXST files you want unique to the player
+
+Default male texture destination:
+
+Data\Textures\Actors\Character\PlayerHumanMale\
+  BaseMaleBody_d.dds
+  BaseMaleBody_n.dds
+  BaseMaleBody_s.dds
+  BaseMaleHands_d.dds
+  BaseMaleHands_n.dds
+  BaseMaleHands_s.dds
+  BaseMaleHead_d.dds
+  BaseMaleHead_n.dds
+  BaseMaleHead_s.dds
+  ...matching TXST files you want unique to the player
+
+Notes:
+- Mesh redirection preserves the upstream filename/subfolder after CharacterAssets.
+- Normal skin texture redirection preserves the upstream filename/subfolder after
+  BaseHumanFemale/BaseHumanMale.
+- FaceBasenameFallback can also take a custom face TXST filename from another folder
+  and look for that filename directly under PlayerHumanFemale/PlayerHumanMale.
+- RequireLooseTarget=true means every missing destination automatically remains on its
+  upstream path.
+- Head meshes and FaceGen TRI/sculpt data are not redirected by this plugin.

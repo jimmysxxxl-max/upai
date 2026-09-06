@@ -1,0 +1,9 @@
+.vs/
+.vscode/
+build/
+.xmake/
+*.user
+*.suo
+*.VC.db
+*.log
+lib/commonlibf4/

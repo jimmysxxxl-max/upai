@@ -1,0 +1,68 @@
+name: Build UniquePlayerRedirector DLL
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install XMake in runner
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Fetch CommonLibF4
+        shell: pwsh
+        run: |
+          if (Test-Path "lib/commonlibf4") { Remove-Item -Recurse -Force "lib/commonlibf4" }
+          git clone --recurse-submodules --depth 1 https://github.com/libxse/commonlibf4.git lib/commonlibf4
+
+      - name: Show tool versions
+        shell: pwsh
+        run: |
+          xmake --version
+          where.exe cl
+
+      - name: Configure
+        shell: pwsh
+        run: xmake f -p windows -a x64 -m releasedbg -y
+
+      - name: Build
+        shell: pwsh
+        run: xmake -y
+
+      - name: Stage mod
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path build -Recurse -Filter UniquePlayerRedirector.dll | Select-Object -First 1
+          if (-not $dll) { throw "UniquePlayerRedirector.dll was not produced." }
+
+          $stage = "artifact/UniquePlayerRedirector/Data/F4SE/Plugins"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item $dll.FullName "$stage/UniquePlayerRedirector.dll"
+          Copy-Item "Data/F4SE/Plugins/UniquePlayerRedirector.ini" "$stage/UniquePlayerRedirector.ini"
+
+          New-Item -ItemType Directory -Force -Path "artifact/UniquePlayerRedirector/Source" | Out-Null
+          Copy-Item -Recurse -Force "src" "artifact/UniquePlayerRedirector/Source/src"
+          Copy-Item "xmake.lua" "artifact/UniquePlayerRedirector/Source/xmake.lua"
+          Copy-Item "LICENSE" "artifact/UniquePlayerRedirector/LICENSE"
+          Copy-Item "README.md" "artifact/UniquePlayerRedirector/README.md"
+          Copy-Item "ASSET_LAYOUT.txt" "artifact/UniquePlayerRedirector/ASSET_LAYOUT.txt"
+
+          Compress-Archive -Path "artifact/UniquePlayerRedirector" -DestinationPath "UniquePlayerRedirector-built.zip" -Force
+          Write-Host "BUILT DLL: $($dll.FullName)"
+
+      - name: Upload ready-to-install ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: UniquePlayerRedirector-built
+          path: UniquePlayerRedirector-built.zip
+          if-no-files-found: error
