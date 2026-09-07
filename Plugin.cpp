@@ -3,32 +3,13 @@
 #include "Config.h"
 #include "RuntimeForms.h"
 #include <REX/W32/KERNEL32.h>
+#include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
 namespace
 {
     std::unique_ptr<UPR::RuntimeForms> g_runtime;
     bool g_menuSinkRegistered = false;
-
-    void SetupLog()
-    {
-        try {
-            const auto logDirectory = F4SE::log::log_directory();
-            if (!logDirectory) {
-                return;
-            }
-
-            const auto logPath = *logDirectory / "UniquePlayerRedirector.log";
-            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);
-            auto logger = std::make_shared<spdlog::logger>("UniquePlayerRedirector", std::move(sink));
-            spdlog::set_default_logger(std::move(logger));
-            spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-            spdlog::set_level(spdlog::level::debug);
-            spdlog::flush_on(spdlog::level::debug);
-        } catch (...) {
-            // Logging must never prevent the plugin from loading.
-        }
-    }
 
     std::filesystem::path GameRoot()
     {
@@ -41,6 +22,27 @@ namespace
             return std::filesystem::current_path();
         }
         return std::filesystem::path(std::wstring_view(buf.data(), len)).parent_path();
+    }
+
+    void SetupLog(const std::filesystem::path& a_gameRoot)
+    {
+        try {
+            // Current CommonLibF4 does not expose F4SE::log::log_directory().
+            // Put our diagnostic log beside the plugin instead; this path is stable
+            // and easy to find in both manual and mod-manager installations.
+            const auto logPath = a_gameRoot / "Data" / "F4SE" / "Plugins" / "UniquePlayerRedirector.log";
+            std::error_code ec;
+            std::filesystem::create_directories(logPath.parent_path(), ec);
+
+            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);
+            auto logger = std::make_shared<spdlog::logger>("UniquePlayerRedirector", std::move(sink));
+            logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+            logger->set_level(spdlog::level::debug);
+            logger->flush_on(spdlog::level::debug);
+            spdlog::set_default_logger(std::move(logger));
+        } catch (...) {
+            // Logging must never prevent the plugin from loading.
+        }
     }
 
     void QueueTask(std::function<void()> a_task)
@@ -94,7 +96,7 @@ namespace
         if (auto* ui = RE::UI::GetSingleton()) {
             ui->RegisterSink<RE::MenuOpenCloseEvent>(&g_menuWatcher);
             g_menuSinkRegistered = true;
-            REX::INFO("Menu-close compatibility refresh enabled");
+            spdlog::info("Menu-close compatibility refresh enabled");
         }
     }
 
@@ -155,25 +157,27 @@ namespace
 F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 {
     F4SE::Init(a_f4se);
-    SetupLog();
 
     const auto root = GameRoot();
+    SetupLog(root);
     const auto configPath = root / "Data" / "F4SE" / "Plugins" / "UniquePlayerRedirector.ini";
     auto config = UPR::Config::Load(configPath);
-    spdlog::set_level(config.verboseLog ? spdlog::level::debug : spdlog::level::info);
+    if (const auto logger = spdlog::default_logger()) {
+        logger->set_level(config.verboseLog ? spdlog::level::debug : spdlog::level::info);
+    }
 
-    REX::INFO("UniquePlayerRedirector 0.2.4-hands-face-test loading");
-    REX::INFO("Game root: {}", root.string());
-    REX::INFO("Config: {}", configPath.string());
+    spdlog::info("UniquePlayerRedirector 0.2.5-hands-face-test loading");
+    spdlog::info("Game root: {}", root.string());
+    spdlog::info("Config: {}", configPath.string());
 
     g_runtime = std::make_unique<UPR::RuntimeForms>(UPR::AssetRouter(std::move(config), root));
 
     const auto* messaging = F4SE::GetMessagingInterface();
     if (!messaging || !messaging->RegisterListener(OnF4SEMessage)) {
-        REX::ERROR("Failed to register F4SE messaging listener");
+        spdlog::error("Failed to register F4SE messaging listener");
         return false;
     }
 
-    REX::INFO("UniquePlayerRedirector loaded; ESP/ESL/ESM not required");
+    spdlog::info("UniquePlayerRedirector loaded; ESP/ESL/ESM not required");
     return true;
 }

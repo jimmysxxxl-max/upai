@@ -39,7 +39,7 @@ namespace UPR
         Config cfg;
         std::ifstream in(a_path);
         if (!in) {
-            REX::WARN("Config not found at {}; using defaults", a_path.string());
+            spdlog::warn("Config not found at {}; using defaults", a_path.string());
             return cfg;
         }
 

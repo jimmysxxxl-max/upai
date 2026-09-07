@@ -126,7 +126,7 @@ namespace UPR
                 ++a_redirectCount;
                 changed = true;
                 if (_router.GetConfig().verboseLog) {
-                    REX::INFO("{} texture: {} -> {}", a_face ? "Face" : "Skin", sourceCopy, *redirected);
+                    spdlog::info("{} texture: {} -> {}", a_face ? "Face" : "Skin", sourceCopy, *redirected);
                 }
             }
         }
@@ -151,7 +151,7 @@ namespace UPR
 
         auto* copy = DuplicateTemporary(a_source);
         if (!copy) {
-            REX::ERROR("Failed to duplicate skin TXST {:08X}", a_source->GetFormID());
+            spdlog::error("Failed to duplicate skin TXST {:08X}", a_source->GetFormID());
             return a_source;
         }
 
@@ -161,7 +161,7 @@ namespace UPR
         }
 
         _skinTextureCopies.emplace(a_source, copy);
-        REX::DEBUG("Skin TXST {:08X}: {} path(s) redirected", a_source->GetFormID(), a_redirectCount - before);
+        spdlog::debug("Skin TXST {:08X}: {} path(s) redirected", a_source->GetFormID(), a_redirectCount - before);
         return copy;
     }
 
@@ -183,7 +183,7 @@ namespace UPR
 
         auto* copy = DuplicateTemporary(a_source);
         if (!copy) {
-            REX::ERROR("Failed to duplicate face TXST {:08X}", a_source->GetFormID());
+            spdlog::error("Failed to duplicate face TXST {:08X}", a_source->GetFormID());
             return a_source;
         }
 
@@ -193,7 +193,7 @@ namespace UPR
         }
 
         _faceTextureCopies.emplace(a_source, copy);
-        REX::DEBUG("Face TXST {:08X}: {} path(s) redirected", a_source->GetFormID(), a_redirectCount - before);
+        spdlog::debug("Face TXST {:08X}: {} path(s) redirected", a_source->GetFormID(), a_redirectCount - before);
         return copy;
     }
 
@@ -213,7 +213,7 @@ namespace UPR
             const char* model3P = a_source->bipedModel[sex].GetModel();
             const char* model1P = a_source->bipedModel1stPerson[sex].GetModel();
             auto* txst = a_source->skinTextures[sex];
-            REX::INFO(
+            spdlog::info(
                 "ARMA {:08X}: 3P='{}' 1P='{}' skinTXST={:08X}",
                 a_source->GetFormID(),
                 model3P ? model3P : "",
@@ -223,7 +223,7 @@ namespace UPR
                 for (std::size_t i = 0; i < std::size(txst->textures); ++i) {
                     const char* texture = txst->textures[i].textureName.c_str();
                     if (texture && *texture) {
-                        REX::INFO("  TXST[{}] '{}'", i, texture);
+                        spdlog::info("  TXST[{}] '{}'", i, texture);
                     }
                 }
             }
@@ -257,7 +257,7 @@ namespace UPR
 
         auto* copy = DuplicateTemporary(a_source);
         if (!copy) {
-            REX::ERROR("Failed to duplicate ARMA {:08X}", a_source->GetFormID());
+            spdlog::error("Failed to duplicate ARMA {:08X}", a_source->GetFormID());
             return a_source;
         }
 
@@ -266,7 +266,7 @@ namespace UPR
             copy->bipedModel[sex].SetModel(thirdPersonPath->c_str());
             ++a_redirectCount;
             if (cfg.verboseLog) {
-                REX::INFO("Mesh: {} -> {}", source, *thirdPersonPath);
+                spdlog::info("Mesh: {} -> {}", source, *thirdPersonPath);
             }
         }
         if (firstPersonPath) {
@@ -274,7 +274,7 @@ namespace UPR
             copy->bipedModel1stPerson[sex].SetModel(firstPersonPath->c_str());
             ++a_redirectCount;
             if (cfg.verboseLog) {
-                REX::INFO("1P mesh: {} -> {}", source, *firstPersonPath);
+                spdlog::info("1P mesh: {} -> {}", source, *firstPersonPath);
             }
         }
         if (textureChanged) {
@@ -293,10 +293,10 @@ namespace UPR
         }
 
         if (_router.GetConfig().verboseLog) {
-            REX::INFO("Skin ARMO {:08X}: {} ARMA entrie(s)", a_source->GetFormID(), a_source->modelArray.size());
+            spdlog::info("Skin ARMO {:08X}: {} ARMA entrie(s)", a_source->GetFormID(), a_source->modelArray.size());
             for (std::size_t i = 0; i < a_source->modelArray.size(); ++i) {
                 auto* arma = a_source->modelArray[i].armorAddon;
-                REX::INFO("  Skin ARMA[{}] = {:08X}", i, arma ? arma->GetFormID() : 0u);
+                spdlog::info("  Skin ARMA[{}] = {:08X}", i, arma ? arma->GetFormID() : 0u);
             }
         }
 
@@ -316,7 +316,7 @@ namespace UPR
 
         auto* copy = DuplicateTemporary(a_source);
         if (!copy) {
-            REX::ERROR("Failed to duplicate skin ARMO {:08X}", a_source->GetFormID());
+            spdlog::error("Failed to duplicate skin ARMO {:08X}", a_source->GetFormID());
             return nullptr;
         }
 
@@ -373,7 +373,7 @@ namespace UPR
         _uniqueFaceTexture = nullptr;
 
         if (_router.GetConfig().verboseLog) {
-            REX::INFO(
+            spdlog::info(
                 "Face sources: explicit={:08X}, winningHeadPartTXST={:08X}, resolved={:08X}",
                 _originalFaceTexture ? _originalFaceTexture->GetFormID() : 0u,
                 _sourceFaceHeadPartTexture ? _sourceFaceHeadPartTexture->GetFormID() : 0u,
@@ -416,7 +416,7 @@ namespace UPR
             flags |= kResetFace;
         }
 
-        REX::INFO("Requesting targeted player 3D rebuild flags=0x{:X} skin={} face={}",
+        spdlog::info("Requesting targeted player 3D rebuild flags=0x{:X} skin={} face={}",
             flags, a_skinChanged ? "yes" : "no", a_faceChanged ? "yes" : "no");
         _player->Reset3D(false, flags, true, 0);
     }
@@ -430,7 +430,7 @@ namespace UPR
         _player = RE::PlayerCharacter::GetSingleton();
         _npc = GetPlayerNPC();
         if (!_player || !_npc) {
-            REX::WARN("Player or Player NPC is not available yet");
+            spdlog::warn("Player or Player NPC is not available yet");
             return false;
         }
 
@@ -445,7 +445,7 @@ namespace UPR
         _appliedSex = sex;
         _applied = true;
         _suspended = false;
-        REX::INFO(
+        spdlog::info(
             "Applied player-only runtime redirects: {} path(s), skin={}, face={}",
             redirectCount,
             skinChanged ? "yes" : "no",
@@ -477,7 +477,7 @@ namespace UPR
 
         const auto sex = _npc->GetSex();
         if (_appliedSex && *_appliedSex != sex) {
-            REX::INFO("Player sex changed; rebuilding player-only runtime forms");
+            spdlog::info("Player sex changed; rebuilding player-only runtime forms");
             Invalidate();
             return Apply(a_reset3D);
         }
@@ -532,7 +532,7 @@ namespace UPR
 
         const bool changed = skinChanged || faceChanged;
         if (redirectCount > 0 || changed) {
-            REX::INFO("Refreshed player redirects after runtime change; {} path(s) redirected", redirectCount);
+            spdlog::info("Refreshed player redirects after runtime change; {} path(s) redirected", redirectCount);
         }
         ResetPlayer3D(a_reset3D, skinChanged, faceChanged);
         return changed;
@@ -554,7 +554,7 @@ namespace UPR
         }
 
         _suspended = true;
-        REX::DEBUG("Temporarily restored upstream player pointers for save serialization");
+        spdlog::debug("Temporarily restored upstream player pointers for save serialization");
     }
 
     void RuntimeForms::ResumeAfterSave()
@@ -573,7 +573,7 @@ namespace UPR
         }
 
         _suspended = false;
-        REX::DEBUG("Reattached player-only runtime pointers after save");
+        spdlog::debug("Reattached player-only runtime pointers after save");
     }
 
     void RuntimeForms::RestoreRuntimePointers()
