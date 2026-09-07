@@ -1,19 +1,14 @@
-UniquePlayerRedirector 0.2.5 hands/face test
+UniquePlayerRedirector 0.2.6 GitHub drop
 
-For your existing flattened GitHub repo:
-1. Extract UniquePlayerRedirector_0.2.5_GITHUB_DROP.zip.
-2. Upload/replace every file from that ZIP at the ROOT of your repository.
-3. Commit the changes.
-4. Do NOT change the working GitHub Actions workflow.
-5. Run Build UniquePlayerRedirector DLL again.
+Upload/replace every file in this folder at the ROOT of the same GitHub repo.
+Do NOT replace your working .github/workflows/build-dll.yml.
+Run the same Build UniquePlayerRedirector DLL workflow.
 
-What changed from 0.2.4:
-- Fixed the current CommonLibF4 logging compile failure.
-- Removed the unavailable F4SE::log::log_directory() call.
-- Included the full spdlog API header.
-- Routed all UPR diagnostic messages through the dedicated spdlog file logger.
-- Diagnostic log now writes to Data\F4SE\Plugins\UniquePlayerRedirector.log.
-- Keeps the 0.2.4 hand/face routing changes and targeted rebuild logic.
+0.2.6 changes:
+- Diagnostic log now writes to %TEMP%\UniquePlayerRedirector.log (works outside MO2/Vortex virtual Data).
+- Face source now prefers the winning Face HeadPart TXST before runtime/generated faceDetails.
+- Hand ARMAs are detected by EditorID/model name and forced to canonical PlayerCharacterAssets hand filenames when those targets exist.
+- Uses a full player 3D rebuild after a successful redirect so cached hand parts / FaceGen materials are not left alive.
 
-After testing, if hands or face still fail, send:
-Data\F4SE\Plugins\UniquePlayerRedirector.log
+TEST NAKED in third-person first, then first-person.
+After exiting the game press Win+R, enter %TEMP%, and send UniquePlayerRedirector.log if anything is still wrong.

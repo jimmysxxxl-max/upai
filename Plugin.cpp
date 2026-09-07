@@ -30,11 +30,20 @@ namespace
             // Current CommonLibF4 does not expose F4SE::log::log_directory().
             // Put our diagnostic log beside the plugin instead; this path is stable
             // and easy to find in both manual and mod-manager installations.
-            const auto logPath = a_gameRoot / "Data" / "F4SE" / "Plugins" / "UniquePlayerRedirector.log";
-            std::error_code ec;
-            std::filesystem::create_directories(logPath.parent_path(), ec);
+            // Always use the per-user temp directory for the diagnostic log.  Writing next
+            // to the DLL/game Data directory is unreliable under MO2/Vortex and can also
+            // fail when Fallout 4 is installed under Program Files.
+            const auto logPath = std::filesystem::temp_directory_path() / "UniquePlayerRedirector.log";
 
-            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);
+            // Touch the file with the standard library first.  This gives us a very simple
+            // sanity check independent of spdlog and truncates the previous test session.
+            {
+                std::ofstream marker(logPath, std::ios::out | std::ios::trunc);
+                marker << "UniquePlayerRedirector diagnostic log\n";
+                marker << "Game root: " << a_gameRoot.string() << "\n";
+            }
+
+            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), false);
             auto logger = std::make_shared<spdlog::logger>("UniquePlayerRedirector", std::move(sink));
             logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
             logger->set_level(spdlog::level::debug);
@@ -166,7 +175,8 @@ F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
         logger->set_level(config.verboseLog ? spdlog::level::debug : spdlog::level::info);
     }
 
-    spdlog::info("UniquePlayerRedirector 0.2.5-hands-face-test loading");
+    spdlog::info("UniquePlayerRedirector 0.2.6-hands-face-hardening loading");
+    spdlog::info("Diagnostic log: {}", (std::filesystem::temp_directory_path() / "UniquePlayerRedirector.log").string());
     spdlog::info("Game root: {}", root.string());
     spdlog::info("Config: {}", configPath.string());
 

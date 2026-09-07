@@ -1,6 +1,52 @@
 #include "pch.h"
 #include "RuntimeForms.h"
 
+namespace
+{
+    char LowerAscii(char c)
+    {
+        return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+
+    bool IContains(std::string_view a_value, std::string_view a_needle)
+    {
+        if (a_needle.empty() || a_value.size() < a_needle.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i + a_needle.size() <= a_value.size(); ++i) {
+            bool match = true;
+            for (std::size_t j = 0; j < a_needle.size(); ++j) {
+                if (LowerAscii(a_value[i + j]) != LowerAscii(a_needle[j])) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool LooksLikeHandAddon(RE::TESObjectARMA* a_arma, std::size_t a_sex)
+    {
+        if (!a_arma) {
+            return false;
+        }
+
+        if (const char* editorID = a_arma->GetFormEditorID(); editorID && *editorID && IContains(editorID, "hand")) {
+            return true;
+        }
+        if (const char* model = a_arma->bipedModel[a_sex].GetModel(); model && *model && IContains(model, "hand")) {
+            return true;
+        }
+        if (const char* model = a_arma->bipedModel1stPerson[a_sex].GetModel(); model && *model && IContains(model, "hand")) {
+            return true;
+        }
+        return false;
+    }
+}
+
 namespace UPR
 {
     RuntimeForms::RuntimeForms(AssetRouter a_router) :
@@ -47,17 +93,19 @@ namespace UPR
             return nullptr;
         }
 
-        // An explicit NPC/runtime face TXST is the strongest upstream winner.
-        if (_npc->headRelatedData && _npc->headRelatedData->faceDetails) {
-            return _npc->headRelatedData->faceDetails;
-        }
-
-        // When there is no explicit NPC face TXST, inherit the current winning Face
-        // HeadPart's texture set. This is important for custom/high-poly heads that
-        // supply both a replacement NIF and their own compatible base TXST. We never
-        // modify or replace the HeadPart itself.
+        // Prefer the CURRENT WINNING FACE HEADPART texture set.  For the player,
+        // headRelatedData->faceDetails can already be a generated/runtime FaceGen tint
+        // texture rather than the base head skin.  Redirecting that generated path is
+        // exactly the wrong layer.  The Face HeadPart TXST is the stable base source and
+        // also automatically inherits high-poly/custom-head mods.
         if (auto* headPartTexture = GetCurrentFaceHeadPartTexture()) {
             return headPartTexture;
+        }
+
+        // Only fall back to an explicit NPC/runtime TXST when the winning Face HeadPart
+        // has none.
+        if (_npc->headRelatedData && _npc->headRelatedData->faceDetails) {
+            return _npc->headRelatedData->faceDetails;
         }
 
         const auto sex = static_cast<std::size_t>(a_sex == RE::SEX::kFemale ? 1 : 0);
@@ -208,14 +256,17 @@ namespace UPR
 
         const auto sex = static_cast<std::size_t>(a_sex == RE::SEX::kFemale ? 1 : 0);
         const auto& cfg = _router.GetConfig();
+        const bool handAddon = LooksLikeHandAddon(a_source, sex);
 
         if (cfg.verboseLog) {
             const char* model3P = a_source->bipedModel[sex].GetModel();
             const char* model1P = a_source->bipedModel1stPerson[sex].GetModel();
             auto* txst = a_source->skinTextures[sex];
             spdlog::info(
-                "ARMA {:08X}: 3P='{}' 1P='{}' skinTXST={:08X}",
+                "ARMA {:08X} editor='{}' handLike={}: 3P='{}' 1P='{}' skinTXST={:08X}",
                 a_source->GetFormID(),
+                a_source->GetFormEditorID() ? a_source->GetFormEditorID() : "",
+                handAddon ? "yes" : "no",
                 model3P ? model3P : "",
                 model1P ? model1P : "",
                 txst ? txst->GetFormID() : 0u);
@@ -241,6 +292,30 @@ namespace UPR
                 model = a_source->bipedModel1stPerson[sex].GetModel();
                 if (model && *model) {
                     firstPersonPath = _router.RedirectMesh(model);
+                }
+            }
+        }
+
+        // Fallout's naked skin uses separate hand ArmorAddons.  Some load orders make
+        // those ARMAs difficult to catch by source-prefix alone, so once an ARMA is
+        // positively identified as a hand addon we force the canonical player hand
+        // filenames.  The router still honors RequireLooseTarget, so this is safe when
+        // the unique hand files are absent.
+        if (cfg.enableSkinMeshes && handAddon) {
+            const bool female = a_sex == RE::SEX::kFemale;
+            const auto canonical3P = female ?
+                R"(Actors\Character\CharacterAssets\FemaleHands.nif)" :
+                R"(Actors\Character\CharacterAssets\MaleHands.nif)";
+            if (auto forced3P = _router.RedirectMesh(canonical3P)) {
+                thirdPersonPath = std::move(forced3P);
+            }
+
+            if (cfg.enableFirstPerson) {
+                const auto canonical1P = female ?
+                    R"(Actors\Character\CharacterAssets\1stPersonFemaleHands.nif)" :
+                    R"(Actors\Character\CharacterAssets\1stPersonMaleHands.nif)";
+                if (auto forced1P = _router.RedirectMesh(canonical1P)) {
+                    firstPersonPath = std::move(forced1P);
                 }
             }
         }
@@ -418,7 +493,12 @@ namespace UPR
 
         spdlog::info("Requesting targeted player 3D rebuild flags=0x{:X} skin={} face={}",
             flags, a_skinChanged ? "yes" : "no", a_faceChanged ? "yes" : "no");
-        _player->Reset3D(false, flags, true, 0);
+        // Use the engine's full reload path for this test build.  The previous targeted
+        // reset was sufficient for the torso but could leave already-instantiated hand
+        // biped parts and FaceGen materials alive.  We do not alter the race, skeleton,
+        // or HeadPart; a full rebuild simply asks Fallout to reconstruct the player from
+        // the current runtime records.
+        _player->Reset3D(true, flags, true, 0);
     }
 
     bool RuntimeForms::Apply(bool a_reset3D)
