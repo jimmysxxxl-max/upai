@@ -8,6 +8,8 @@ namespace UPR
         bool enableSkinTextures{ true };
         bool enableFirstPerson{ true };
         bool enableFaceTextures{ true };
+        bool skinMeshBasenameFallback{ true };
+        bool skinTextureBasenameFallback{ true };
         bool faceBasenameFallback{ true };
         bool requireLooseTarget{ true };
         bool reset3DOnApply{ true };

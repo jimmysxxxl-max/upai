@@ -209,6 +209,26 @@ namespace UPR
         const auto sex = static_cast<std::size_t>(a_sex == RE::SEX::kFemale ? 1 : 0);
         const auto& cfg = _router.GetConfig();
 
+        if (cfg.verboseLog) {
+            const char* model3P = a_source->bipedModel[sex].GetModel();
+            const char* model1P = a_source->bipedModel1stPerson[sex].GetModel();
+            auto* txst = a_source->skinTextures[sex];
+            REX::INFO(
+                "ARMA {:08X}: 3P='{}' 1P='{}' skinTXST={:08X}",
+                a_source->GetFormID(),
+                model3P ? model3P : "",
+                model1P ? model1P : "",
+                txst ? txst->GetFormID() : 0u);
+            if (txst) {
+                for (std::size_t i = 0; i < std::size(txst->textures); ++i) {
+                    const char* texture = txst->textures[i].textureName.c_str();
+                    if (texture && *texture) {
+                        REX::INFO("  TXST[{}] '{}'", i, texture);
+                    }
+                }
+            }
+        }
+
         std::optional<std::string> thirdPersonPath;
         std::optional<std::string> firstPersonPath;
         if (cfg.enableSkinMeshes) {
@@ -270,6 +290,14 @@ namespace UPR
     {
         if (!a_source) {
             return nullptr;
+        }
+
+        if (_router.GetConfig().verboseLog) {
+            REX::INFO("Skin ARMO {:08X}: {} ARMA entrie(s)", a_source->GetFormID(), a_source->modelArray.size());
+            for (std::size_t i = 0; i < a_source->modelArray.size(); ++i) {
+                auto* arma = a_source->modelArray[i].armorAddon;
+                REX::INFO("  Skin ARMA[{}] = {:08X}", i, arma ? arma->GetFormID() : 0u);
+            }
         }
 
         std::vector<RE::TESObjectARMA*> replacements;
@@ -344,6 +372,14 @@ namespace UPR
         _sourceFaceTexture = ResolveFaceTextureSource(a_sex);
         _uniqueFaceTexture = nullptr;
 
+        if (_router.GetConfig().verboseLog) {
+            REX::INFO(
+                "Face sources: explicit={:08X}, winningHeadPartTXST={:08X}, resolved={:08X}",
+                _originalFaceTexture ? _originalFaceTexture->GetFormID() : 0u,
+                _sourceFaceHeadPartTexture ? _sourceFaceHeadPartTexture->GetFormID() : 0u,
+                _sourceFaceTexture ? _sourceFaceTexture->GetFormID() : 0u);
+        }
+
         if (!_sourceFaceTexture) {
             return false;
         }
@@ -358,11 +394,31 @@ namespace UPR
         return true;
     }
 
-    void RuntimeForms::ResetPlayer3D(bool a_requested)
+    void RuntimeForms::ResetPlayer3D(bool a_requested, bool a_skinChanged, bool a_faceChanged)
     {
-        if (a_requested && _player && _router.GetConfig().reset3DOnApply) {
-            _player->Reset3D(true, 0, true, 0);
+        if (!a_requested || !_player || !_router.GetConfig().reset3DOnApply || (!a_skinChanged && !a_faceChanged)) {
+            return;
         }
+
+        // Fallout 4 Actor::Reset3D additional flags. These mirror the targeted skin/face
+        // rebuild used by LooksMenu, while deliberately keeping the current head part/mesh.
+        // We never request RESET_HEAD or RESET_SKELETON.
+        constexpr std::uint32_t kResetModel = 1u << 0;
+        constexpr std::uint32_t kResetSkin = 1u << 1;
+        constexpr std::uint32_t kResetFace = 1u << 3;
+        constexpr std::uint32_t kResetKeepHead = 1u << 10;
+
+        std::uint32_t flags = kResetKeepHead;
+        if (a_skinChanged) {
+            flags |= kResetModel | kResetSkin;
+        }
+        if (a_faceChanged) {
+            flags |= kResetFace;
+        }
+
+        REX::INFO("Requesting targeted player 3D rebuild flags=0x{:X} skin={} face={}",
+            flags, a_skinChanged ? "yes" : "no", a_faceChanged ? "yes" : "no");
+        _player->Reset3D(false, flags, true, 0);
     }
 
     bool RuntimeForms::Apply(bool a_reset3D)
@@ -395,7 +451,7 @@ namespace UPR
             skinChanged ? "yes" : "no",
             faceChanged ? "yes" : "no");
 
-        ResetPlayer3D(a_reset3D && (skinChanged || faceChanged));
+        ResetPlayer3D(a_reset3D, skinChanged, faceChanged);
         return true;
     }
 
@@ -427,15 +483,16 @@ namespace UPR
         }
 
         std::size_t redirectCount = 0;
-        bool changed = false;
+        bool skinChanged = false;
+        bool faceChanged = false;
 
         // Another runtime mod may have replaced the player's skin after us. Treat its
         // current winner as the new upstream source and wrap that, rather than fighting
         // it with a stale clone.
         if (_uniqueSkin && _npc->formSkin != _uniqueSkin) {
-            changed |= RebuildSkinFromCurrent(sex, redirectCount);
+            skinChanged |= RebuildSkinFromCurrent(sex, redirectCount);
         } else if (!_uniqueSkin && _npc->formSkin != _originalNPCSkin) {
-            changed |= RebuildSkinFromCurrent(sex, redirectCount);
+            skinChanged |= RebuildSkinFromCurrent(sex, redirectCount);
         }
 
         // We never own/replace the HeadRelatedData object. If another mod changes the
@@ -469,14 +526,15 @@ namespace UPR
 
             if (headDataChanged || faceTextureChanged || faceWasPreviouslyUnavailable ||
                 headPartTextureChangedUnderInheritedSource) {
-                changed |= RebuildFaceFromCurrent(sex, redirectCount);
+                faceChanged |= RebuildFaceFromCurrent(sex, redirectCount);
             }
         }
 
+        const bool changed = skinChanged || faceChanged;
         if (redirectCount > 0 || changed) {
             REX::INFO("Refreshed player redirects after runtime change; {} path(s) redirected", redirectCount);
         }
-        ResetPlayer3D(a_reset3D && changed);
+        ResetPlayer3D(a_reset3D, skinChanged, faceChanged);
         return changed;
     }
 

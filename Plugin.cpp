@@ -3,11 +3,32 @@
 #include "Config.h"
 #include "RuntimeForms.h"
 #include <REX/W32/KERNEL32.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 namespace
 {
     std::unique_ptr<UPR::RuntimeForms> g_runtime;
     bool g_menuSinkRegistered = false;
+
+    void SetupLog()
+    {
+        try {
+            const auto logDirectory = F4SE::log::log_directory();
+            if (!logDirectory) {
+                return;
+            }
+
+            const auto logPath = *logDirectory / "UniquePlayerRedirector.log";
+            auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);
+            auto logger = std::make_shared<spdlog::logger>("UniquePlayerRedirector", std::move(sink));
+            spdlog::set_default_logger(std::move(logger));
+            spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+            spdlog::set_level(spdlog::level::debug);
+            spdlog::flush_on(spdlog::level::debug);
+        } catch (...) {
+            // Logging must never prevent the plugin from loading.
+        }
+    }
 
     std::filesystem::path GameRoot()
     {
@@ -134,12 +155,14 @@ namespace
 F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 {
     F4SE::Init(a_f4se);
+    SetupLog();
 
     const auto root = GameRoot();
     const auto configPath = root / "Data" / "F4SE" / "Plugins" / "UniquePlayerRedirector.ini";
     auto config = UPR::Config::Load(configPath);
+    spdlog::set_level(config.verboseLog ? spdlog::level::debug : spdlog::level::info);
 
-    REX::INFO("UniquePlayerRedirector 0.2.0 loading");
+    REX::INFO("UniquePlayerRedirector 0.2.4-hands-face-test loading");
     REX::INFO("Game root: {}", root.string());
     REX::INFO("Config: {}", configPath.string());
 

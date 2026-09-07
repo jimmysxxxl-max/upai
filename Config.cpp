@@ -71,6 +71,8 @@ namespace UPR
                 else if (key == "enableskintextures") cfg.enableSkinTextures = ParseBool(value, cfg.enableSkinTextures);
                 else if (key == "enablefirstperson") cfg.enableFirstPerson = ParseBool(value, cfg.enableFirstPerson);
                 else if (key == "enablefacetextures") cfg.enableFaceTextures = ParseBool(value, cfg.enableFaceTextures);
+                else if (key == "skinmeshbasenamefallback") cfg.skinMeshBasenameFallback = ParseBool(value, cfg.skinMeshBasenameFallback);
+                else if (key == "skintexturebasenamefallback") cfg.skinTextureBasenameFallback = ParseBool(value, cfg.skinTextureBasenameFallback);
                 else if (key == "facebasenamefallback") cfg.faceBasenameFallback = ParseBool(value, cfg.faceBasenameFallback);
                 else if (key == "requireloosetarget") cfg.requireLooseTarget = ParseBool(value, cfg.requireLooseTarget);
                 else if (key == "reset3donapply") cfg.reset3DOnApply = ParseBool(value, cfg.reset3DOnApply);

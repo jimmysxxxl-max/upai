@@ -71,7 +71,27 @@ namespace UPR
 
     std::optional<std::string> AssetRouter::RedirectMesh(std::string_view a_path) const
     {
-        return ReplacePrefix(a_path, _config.meshFrom, _config.meshTo, AssetKind::Mesh);
+        if (const auto normal = ReplacePrefix(a_path, _config.meshFrom, _config.meshTo, AssetKind::Mesh)) {
+            return normal;
+        }
+
+        // Hand/body replacers sometimes point their ARMA at a custom source folder rather
+        // than CharacterAssets. Preserve the winning filename and look for that same file
+        // in PlayerCharacterAssets instead of silently missing the redirect.
+        if (!_config.skinMeshBasenameFallback || a_path.empty()) {
+            return std::nullopt;
+        }
+
+        const auto filename = FilenameOnly(a_path);
+        if (filename.empty()) {
+            return std::nullopt;
+        }
+
+        auto target = NormalizeSlashes(_config.meshTo + filename);
+        if (_config.requireLooseTarget && !TargetExists(AssetKind::Mesh, target)) {
+            return std::nullopt;
+        }
+        return target;
     }
 
     std::optional<std::string> AssetRouter::RedirectTexture(std::string_view a_path, RE::SEX a_sex) const
@@ -79,12 +99,34 @@ namespace UPR
         const bool female = a_sex == RE::SEX::kFemale;
         const auto& from = female ? _config.femaleTextureFrom : _config.maleTextureFrom;
         const auto& to = female ? _config.femaleTextureTo : _config.maleTextureTo;
-        return ReplacePrefix(a_path, from, to, AssetKind::Texture);
+
+        if (const auto normal = ReplacePrefix(a_path, from, to, AssetKind::Texture)) {
+            return normal;
+        }
+
+        if (!_config.skinTextureBasenameFallback || a_path.empty()) {
+            return std::nullopt;
+        }
+
+        const auto filename = FilenameOnly(a_path);
+        if (filename.empty()) {
+            return std::nullopt;
+        }
+
+        auto target = NormalizeSlashes(TextureTargetPrefix(a_sex) + filename);
+        if (_config.requireLooseTarget && !TargetExists(AssetKind::Texture, target)) {
+            return std::nullopt;
+        }
+        return target;
     }
 
     std::optional<std::string> AssetRouter::RedirectFaceTexture(std::string_view a_path, RE::SEX a_sex) const
     {
-        if (const auto normal = RedirectTexture(a_path, a_sex)) {
+        // Keep face fallback independent from the skin-texture fallback switch.
+        const bool female = a_sex == RE::SEX::kFemale;
+        const auto& from = female ? _config.femaleTextureFrom : _config.maleTextureFrom;
+        const auto& to = female ? _config.femaleTextureTo : _config.maleTextureTo;
+        if (const auto normal = ReplacePrefix(a_path, from, to, AssetKind::Texture)) {
             return normal;
         }
 

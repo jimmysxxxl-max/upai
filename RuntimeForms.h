@@ -53,7 +53,7 @@ namespace UPR
         bool RebuildSkinFromCurrent(RE::SEX a_sex, std::size_t& a_redirectCount);
         bool RebuildFaceFromCurrent(RE::SEX a_sex, std::size_t& a_redirectCount);
         void RestoreRuntimePointers();
-        void ResetPlayer3D(bool a_requested);
+        void ResetPlayer3D(bool a_requested, bool a_skinChanged, bool a_faceChanged);
 
         AssetRouter _router;
         RE::TESNPC* _npc{ nullptr };
